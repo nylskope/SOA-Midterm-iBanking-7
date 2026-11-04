@@ -1,0 +1,6 @@
+@IBankingTuition.TuitionService_HostAddress = http://localhost:5132
+
+GET {{IBankingTuition.TuitionService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

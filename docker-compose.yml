@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ibanking_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: IBankingTuitionDb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ibanking-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: ibanking_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - ibanking-net
+
+  user-service:
+    build: 
+      context: .
+      dockerfile: src/IBankingTuition.UserService/Dockerfile
+    container_name: user_service
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=IBankingTuitionDb;Username=postgres;Password=password123
+      - Jwt__Secret=YourSuperSecretKeyForJwtAuthentication123!
+    ports:
+      - "5001:80"
+    depends_on:
+      - postgres
+    networks:
+      - ibanking-net
+
+  tuition-service:
+    build: 
+      context: .
+      dockerfile: src/IBankingTuition.TuitionService/Dockerfile
+    container_name: tuition_service
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=IBankingTuitionDb;Username=postgres;Password=password123
+      - Jwt__Secret=YourSuperSecretKeyForJwtAuthentication123!
+    ports:
+      - "5002:80"
+    depends_on:
+      - postgres
+    networks:
+      - ibanking-net
+
+  otp-service:
+    build: 
+      context: .
+      dockerfile: src/IBankingTuition.OtpService/Dockerfile
+    container_name: otp_service
+    environment:
+      - ConnectionStrings__RedisConnection=redis:6379
+      - SendGrid__ApiKey=${SENDGRID_API_KEY}
+    ports:
+      - "5003:80"
+    depends_on:
+      - redis
+    networks:
+      - ibanking-net
+
+  payment-orchestrator:
+    build: 
+      context: .
+      dockerfile: src/IBankingTuition.PaymentOrchestrator/Dockerfile
+    container_name: payment_orchestrator
+    environment:
+      - MoMo__Endpoint=https://test-payment.momo.vn/v2/gateway/api/create
+      - MoMo__PartnerCode=${MOMO_PARTNER_CODE}
+      - MoMo__AccessKey=${MOMO_ACCESS_KEY}
+      - MoMo__SecretKey=${MOMO_SECRET_KEY}
+    ports:
+      - "5004:80"
+    networks:
+      - ibanking-net
+
+networks:
+  ibanking-net:
+    driver: bridge
+
+volumes:
+  postgres_data:

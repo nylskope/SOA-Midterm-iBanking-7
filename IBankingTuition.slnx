@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/IBankingTuition.Infrastructure/IBankingTuition.Infrastructure.csproj" />
+    <Project Path="src/IBankingTuition.OtpService/IBankingTuition.OtpService.csproj" />
+    <Project Path="src/IBankingTuition.PaymentOrchestrator/IBankingTuition.PaymentOrchestrator.csproj" />
+    <Project Path="src/IBankingTuition.TuitionService/IBankingTuition.TuitionService.csproj" />
+    <Project Path="src/IBankingTuition.UserService/IBankingTuition.UserService.csproj" />
+  </Folder>
+</Solution>
