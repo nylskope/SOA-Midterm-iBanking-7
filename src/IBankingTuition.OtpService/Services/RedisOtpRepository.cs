@@ -1,5 +1,6 @@
 using System.Text.Json;
 using StackExchange.Redis;
+using System.Security.Cryptography;
 
 namespace IBankingTuition.OtpService.Services;
 
@@ -11,9 +12,9 @@ public class RedisOtpRepository {
     }
 
     public async Task<string> GenerateAndStoreOtpAsync(string transactionId) {
-        var code = new Random().Next(100000, 999999).ToString();
+        var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
         var otpData = JsonSerializer.Serialize(new { Code = code, IsUsed = false });
-        
+
         // Native 5-minute expiration (TTL)
         await _redis.StringSetAsync($"otp:{transactionId}", otpData, TimeSpan.FromMinutes(5));
         return code;
@@ -22,7 +23,7 @@ public class RedisOtpRepository {
     public async Task<bool> VerifyAndConsumeOtpAsync(string transactionId, string code) {
         var key = $"otp:{transactionId}";
         var otpData = await _redis.StringGetAsync(key);
-        
+
         if (!otpData.HasValue) return false; // Expired or doesn't exist
 
         // ADDED .ToString() to fix the ambiguous call error
@@ -32,7 +33,7 @@ public class RedisOtpRepository {
         // Mark as used (Single-use)
         otp.IsUsed = true;
         await _redis.StringSetAsync(key, JsonSerializer.Serialize(otp), TimeSpan.FromMinutes(5));
-        
+
         return true;
     }
 }

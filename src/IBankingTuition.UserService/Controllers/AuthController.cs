@@ -22,7 +22,7 @@ public class AuthController : ControllerBase {
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request) {
         var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == request.Username && u.PasswordHash == request.Password); // Note: In production, use BCrypt to verify hash
+            .FirstOrDefaultAsync(u => u.Username == request.Username && u.PasswordHash == request.Password);
 
         if (user == null) return Unauthorized(new { message = "Invalid credentials" });
 
@@ -46,9 +46,45 @@ public class AuthController : ControllerBase {
     public async Task<IActionResult> GetBalance(string id) {
         var user = await _context.Users.FindAsync(id);
         if (user == null) return NotFound();
-        
+
+        return Ok(new { user.UserId, user.Balance, user.RowVersion });
+    }
+
+    [HttpPost("{id}/deduct")]
+    public async Task<IActionResult> DeductBalance(string id, [FromBody] DeductRequest req) {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null) return NotFound();
+
+        if (user.Balance < req.Amount)
+            return BadRequest("Insufficient funds.");
+
+        if (user.RowVersion != req.RowVersion)
+            return Conflict("Concurrency conflict. Balance was updated by another process.");
+
+        user.Balance -= req.Amount;
+        user.RowVersion += 1;
+
+        try {
+            await _context.SaveChangesAsync();
+            return Ok(new { user.UserId, user.Balance, user.RowVersion });
+        } catch (DbUpdateConcurrencyException) {
+            return Conflict("Concurrency conflict occurred during save.");
+        }
+    }
+
+    [HttpPost("{id}/refund")]
+    public async Task<IActionResult> RefundBalance(string id, [FromBody] RefundRequest req) {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null) return NotFound();
+
+        user.Balance += req.Amount;
+        user.RowVersion += 1;
+        await _context.SaveChangesAsync();
+
         return Ok(new { user.UserId, user.Balance, user.RowVersion });
     }
 }
 
 public record LoginRequest(string Username, string Password);
+public record DeductRequest(decimal Amount, int RowVersion);
+public record RefundRequest(decimal Amount);
