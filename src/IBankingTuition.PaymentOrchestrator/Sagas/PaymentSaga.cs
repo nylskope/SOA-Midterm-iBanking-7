@@ -5,14 +5,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace IBankingTuition.PaymentOrchestrator.Sagas;
 
-public class PaymentSaga {
+public class PaymentSaga
+{
     private readonly HttpClient _internalClient;
     private readonly IPaymentAdapter _paymentAdapter;
     private readonly IEmailAdapter _emailAdapter;
     private readonly TransactionDbContext _dbContext;
     private readonly IConfiguration _config;
 
-    public PaymentSaga(HttpClient internalClient, IPaymentAdapter paymentAdapter, IEmailAdapter emailAdapter, TransactionDbContext dbContext, IConfiguration config) {
+    public PaymentSaga(HttpClient internalClient, IPaymentAdapter paymentAdapter, IEmailAdapter emailAdapter, TransactionDbContext dbContext, IConfiguration config)
+    {
         _internalClient = internalClient;
         _paymentAdapter = paymentAdapter;
         _emailAdapter = emailAdapter;
@@ -20,15 +22,18 @@ public class PaymentSaga {
         _config = config;
     }
 
-    public async Task<SagaResult> ExecuteAsync(PaymentCommand cmd) {
+    public async Task<SagaResult> ExecuteAsync(PaymentCommand cmd)
+    {
         var otpUrl = _config["InternalServices:OtpService"] ?? "http://localhost:5006";
 
         var otpRes = await _internalClient.PutAsJsonAsync($"{otpUrl}/api/otps/{cmd.TransactionId}", new { Code = cmd.OtpCode });
-        if (!otpRes.IsSuccessStatusCode) {
+        if (!otpRes.IsSuccessStatusCode)
+        {
             return new SagaResult(false, "OTP Verification Failed.");
         }
 
-        var txn = new TransactionRecord {
+        var txn = new TransactionRecord
+        {
             TransactionId = cmd.TransactionId,
             UserId = cmd.PayerId,
             FeeId = cmd.FeeId,
@@ -41,7 +46,7 @@ public class PaymentSaga {
         var paymentUrl = await _paymentAdapter.GeneratePaymentUrlAsync(
             cmd.TransactionId,
             cmd.Amount,
-            $"Tuition {cmd.FeeId}",
+            $"Tuition {cmd.FeeId} - {cmd.TransactionId}",
             cmd.UserRowVersion,
             cmd.TuitionRowVersion,
             cmd.Email
@@ -50,7 +55,8 @@ public class PaymentSaga {
         return new SagaResult(true, "Transaction Initiated", paymentUrl);
     }
 
-    public async Task<bool> CompletePaymentAsync(string transactionId, int userRowVersion, int tuitionRowVersion, string email) {
+    public async Task<bool> CompletePaymentAsync(string transactionId, int userRowVersion, int tuitionRowVersion, string email)
+    {
         var txn = await _dbContext.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId);
         if (txn == null || txn.Status != "PENDING") return false;
 
@@ -58,14 +64,16 @@ public class PaymentSaga {
         var tuitionUrl = _config["InternalServices:TuitionService"] ?? "http://localhost:5132";
 
         var deductRes = await _internalClient.PostAsJsonAsync($"{userUrl}/api/users/{txn.UserId}/deduct", new { Amount = txn.Amount, RowVersion = userRowVersion });
-        if (!deductRes.IsSuccessStatusCode) {
+        if (!deductRes.IsSuccessStatusCode)
+        {
             txn.Status = "FAILED";
             await _dbContext.SaveChangesAsync();
             return false;
         }
 
         var tuitionRes = await _internalClient.PutAsJsonAsync($"{tuitionUrl}/api/tuitions/{txn.FeeId}", new { IsPaid = true, RowVersion = tuitionRowVersion });
-        if (!tuitionRes.IsSuccessStatusCode) {
+        if (!tuitionRes.IsSuccessStatusCode)
+        {
             await _internalClient.PostAsJsonAsync($"{userUrl}/api/users/{txn.UserId}/refund", new { Amount = txn.Amount });
             txn.Status = "COMPENSATED";
             await _dbContext.SaveChangesAsync();
@@ -77,6 +85,19 @@ public class PaymentSaga {
         _ = _emailAdapter.SendEmailAsync(email, "Payment Successful", $"Transaction {transactionId} completed for {txn.Amount} VND.");
 
         return true;
+    }
+
+    // NEW METHOD ADDED HERE: Handles Canceled or Failed transactions from VNPAY
+    public async Task<bool> UpdateTransactionStatusAsync(string transactionId, string newStatus)
+    {
+        var txn = await _dbContext.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId);
+        if (txn != null && txn.Status == "PENDING")
+        {
+            txn.Status = newStatus;
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+        return false;
     }
 }
 

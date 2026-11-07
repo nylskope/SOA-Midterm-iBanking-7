@@ -10,17 +10,20 @@ namespace IBankingTuition.UserService.Controllers;
 
 [ApiController]
 [Route("api/users")]
-public class AuthController : ControllerBase {
+public class AuthController : ControllerBase
+{
     private readonly UserDbContext _context;
     private readonly IConfiguration _config;
 
-    public AuthController(UserDbContext context, IConfiguration config) {
+    public AuthController(UserDbContext context, IConfiguration config)
+    {
         _context = context;
         _config = config;
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request) {
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    {
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.Username == request.Username && u.PasswordHash == request.Password);
 
@@ -28,7 +31,8 @@ public class AuthController : ControllerBase {
 
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(_config["Jwt:Secret"]);
-        var tokenDescriptor = new SecurityTokenDescriptor {
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
             Subject = new ClaimsIdentity(new[] { new Claim("id", user.UserId) }),
             Expires = DateTime.UtcNow.AddHours(2),
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
@@ -36,14 +40,16 @@ public class AuthController : ControllerBase {
 
         var token = tokenHandler.CreateToken(tokenDescriptor);
 
-        return Ok(new {
+        return Ok(new
+        {
             token = tokenHandler.WriteToken(token),
-            user = new { user.UserId, user.FullName, user.Balance }
+            user = new { user.UserId, user.FullName, user.Phone, user.Email, user.Balance }
         });
     }
 
     [HttpGet("{id}/balance")]
-    public async Task<IActionResult> GetBalance(string id) {
+    public async Task<IActionResult> GetBalance(string id)
+    {
         var user = await _context.Users.FindAsync(id);
         if (user == null) return NotFound();
 
@@ -51,7 +57,8 @@ public class AuthController : ControllerBase {
     }
 
     [HttpPost("{id}/deduct")]
-    public async Task<IActionResult> DeductBalance(string id, [FromBody] DeductRequest req) {
+    public async Task<IActionResult> DeductBalance(string id, [FromBody] DeductRequest req)
+    {
         var user = await _context.Users.FindAsync(id);
         if (user == null) return NotFound();
 
@@ -64,16 +71,20 @@ public class AuthController : ControllerBase {
         user.Balance -= req.Amount;
         user.RowVersion += 1;
 
-        try {
+        try
+        {
             await _context.SaveChangesAsync();
             return Ok(new { user.UserId, user.Balance, user.RowVersion });
-        } catch (DbUpdateConcurrencyException) {
+        }
+        catch (DbUpdateConcurrencyException)
+        {
             return Conflict("Concurrency conflict occurred during save.");
         }
     }
 
     [HttpPost("{id}/refund")]
-    public async Task<IActionResult> RefundBalance(string id, [FromBody] RefundRequest req) {
+    public async Task<IActionResult> RefundBalance(string id, [FromBody] RefundRequest req)
+    {
         var user = await _context.Users.FindAsync(id);
         if (user == null) return NotFound();
 

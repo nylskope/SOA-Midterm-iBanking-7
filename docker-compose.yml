@@ -93,6 +93,21 @@ services:
     networks:
       - ibanking-net
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ibanking_frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - user-service
+      - tuition-service
+      - otp-service
+      - payment-orchestrator
+
 networks:
   ibanking-net:
     driver: bridge
