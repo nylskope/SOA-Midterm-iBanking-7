@@ -69,13 +69,11 @@ public class TransactionController : ControllerBase
             }
             else if (responseCode == "24")
             {
-                // 24 explicitly means the user clicked 'Hủy thanh toán'
                 await _saga.UpdateTransactionStatusAsync(vnp_TxnRef, "CANCELED");
                 return Redirect($"http://localhost:3000/?status=canceled&txn={vnp_TxnRef}");
             }
             else
             {
-                // Any other VNPAY error
                 await _saga.UpdateTransactionStatusAsync(vnp_TxnRef, "FAILED");
                 return Redirect($"http://localhost:3000/?status=failed&txn={vnp_TxnRef}");
             }

@@ -87,7 +87,6 @@ public class PaymentSaga
         return true;
     }
 
-    // NEW METHOD ADDED HERE: Handles Canceled or Failed transactions from VNPAY
     public async Task<bool> UpdateTransactionStatusAsync(string transactionId, string newStatus)
     {
         var txn = await _dbContext.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId);

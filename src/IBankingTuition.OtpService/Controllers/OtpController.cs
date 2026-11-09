@@ -22,7 +22,6 @@ public class OtpController : ControllerBase
     {
         var code = await _repository.GenerateAndStoreOtpAsync(req.TransactionId);
 
-        // Dispatch via third-party adapter
         await _emailAdapter.SendEmailAsync(req.Email, "Your OTP Code", $"Your code is: {code}. It expires in 5 minutes.");
 
         return Created($"/api/otps/{req.TransactionId}", new { ExpiresIn = 300 });

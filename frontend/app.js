@@ -17,7 +17,6 @@ window.onload = async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const status = urlParams.get("status");
 
-  // 1. If returning from VNPAY, intercept immediately and show the standalone screen
   if (status) {
     document.getElementById("login-view").classList.add("hidden");
     document.getElementById("dashboard-view").classList.add("hidden");
@@ -26,7 +25,6 @@ window.onload = async () => {
     return;
   }
 
-  // 2. Normal load
   if (state.user) {
     document.getElementById("login-view").classList.add("hidden");
     document.getElementById("dashboard-view").classList.remove("hidden");
@@ -63,7 +61,6 @@ function processVnpayCallback(urlParams) {
     title.innerText = "Giao dịch đã bị hủy!";
     msg.innerHTML = `Mã GD: <strong>${txn}</strong><br>Bạn đã chủ động hủy thanh toán tại cổng VNPAY.`;
   } else {
-    // Improved error message mapping
     let errorReason = "Lỗi hệ thống không xác định.";
     if (status === "conflict")
       errorReason =
@@ -106,14 +103,13 @@ async function login() {
     localStorage.setItem("user", JSON.stringify(data.user));
     state.user = data.user;
 
-    location.reload(); // Reloads to trigger window.onload setup safely
+    location.reload();
   } catch (err) {
     document.getElementById("login-error").classList.remove("hidden");
   }
 }
 
 async function loadDashboard() {
-  // 1. Get Fresh Balance
   const balanceRes = await fetch(`${API.user}/${state.user.userId}/balance`);
   const balanceData = await balanceRes.json();
   state.userRowVersion = balanceData.rowVersion;
@@ -121,7 +117,6 @@ async function loadDashboard() {
   document.getElementById("user-balance").innerText =
     balanceData.balance.toLocaleString() + " VND";
 
-  // 2. Get Transaction History
   const historyRes = await fetch(`${API.payment}/history/${state.user.userId}`);
   const historyBody = document.getElementById("history-table-body");
   historyBody.innerHTML = "";
@@ -138,7 +133,6 @@ async function loadDashboard() {
       else if (txn.status === "COMPENSATED") badgeClass = "bg-info text-dark";
       else if (txn.status === "PENDING") {
         badgeClass = "bg-warning text-dark";
-        // Add the manual kill switch for orphaned transactions
         actionBtn = `<button class="btn btn-sm btn-outline-danger ms-2 py-0" style="font-size: 0.75rem;" onclick="killPendingTxn('${txn.transactionId}')">Hủy</button>`;
       }
 
@@ -165,7 +159,6 @@ async function lookupTuition() {
   if (res.ok) {
     const fees = await res.json();
     fees.forEach((fee) => {
-      // Rubric rule: Disable button if balance is too low
       const hasEnoughBalance = state.user.balance >= fee.amount;
       const btnClass = hasEnoughBalance
         ? "btn-success"

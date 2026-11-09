@@ -24,14 +24,12 @@
     </head>
     <body>
         <div class="container mt-5 mb-5">
-            <!-- Payment Redirect Result Alert -->
             <div
                 id="payment-result-alert"
                 class="alert hidden text-center"
                 role="alert"
             ></div>
 
-            <!-- VNPAY Callback Processing View -->
             <div
                 id="callback-view"
                 class="row justify-content-center hidden mb-5"
@@ -74,7 +72,6 @@
                 </div>
             </div>
 
-            <!-- Login View -->
             <div id="login-view" class="row justify-content-center">
                 <div class="col-md-5">
                     <div class="card card-custom p-4">
@@ -112,7 +109,6 @@
                 </div>
             </div>
 
-            <!-- Dashboard View -->
             <div id="dashboard-view" class="hidden">
                 <div
                     class="d-flex justify-content-between align-items-center mb-4"
@@ -124,7 +120,6 @@
                 </div>
 
                 <div class="row">
-                    <!-- Group A & C: Payer Info & Balance -->
                     <div class="col-md-4 mb-4">
                         <div
                             class="card card-custom p-4 bg-primary text-white mb-3"
@@ -170,7 +165,6 @@
                         </div>
                     </div>
 
-                    <!-- Group B: Tuition Lookup -->
                     <div class="col-md-8">
                         <div class="card card-custom p-4 mb-4">
                             <h5 class="mb-3">Tra cứu học phí</h5>
@@ -214,7 +208,6 @@
                             </table>
                         </div>
 
-                        <!-- Transaction History -->
                         <div class="card card-custom p-4">
                             <h5 class="mb-3">Lịch sử giao dịch</h5>
                             <table class="table table-sm table-striped">
@@ -226,9 +219,7 @@
                                         <th>Trạng thái</th>
                                     </tr>
                                 </thead>
-                                <tbody id="history-table-body">
-                                    <!-- Populated by JS -->
-                                </tbody>
+                                <tbody id="history-table-body"></tbody>
                             </table>
                         </div>
                     </div>
@@ -236,7 +227,6 @@
             </div>
         </div>
 
-        <!-- OTP Modal -->
         <div class="modal fade" id="otpModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog">
                 <div class="modal-content">
