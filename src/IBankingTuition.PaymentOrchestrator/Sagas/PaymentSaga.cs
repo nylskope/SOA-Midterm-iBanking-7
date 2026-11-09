@@ -25,6 +25,14 @@ public class PaymentSaga
 
     public async Task<SagaResult> ExecuteAsync(PaymentCommand cmd)
     {
+        var hasPending = await _dbContext.Transactions
+        .AnyAsync(t => t.UserId == cmd.PayerId && t.FeeId == cmd.FeeId && t.Status == "PENDING");
+
+        if (hasPending)
+        {
+            return new SagaResult(false, "Bạn đang có một giao dịch đang chờ xử lý. Vui lòng hoàn tất hoặc hủy giao dịch đó trong Lịch sử trước khi tiếp tục.");
+        }
+
         var otpUrl = _config["InternalServices:OtpService"] ?? "http://localhost:5006";
 
         var otpRes = await _internalClient.PutAsJsonAsync($"{otpUrl}/api/otps/{cmd.TransactionId}", new { Code = cmd.OtpCode });

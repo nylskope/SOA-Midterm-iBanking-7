@@ -9,6 +9,7 @@ let state = {
   user: JSON.parse(localStorage.getItem("user")) || null,
   userRowVersion: 1,
   pendingPayment: null,
+  pendingFeeIds: [],
 };
 
 const otpModal = new bootstrap.Modal(document.getElementById("otpModal"));
@@ -120,6 +121,7 @@ async function loadDashboard() {
   const historyRes = await fetch(`${API.payment}/history/${state.user.userId}`);
   const historyBody = document.getElementById("history-table-body");
   historyBody.innerHTML = "";
+  state.pendingFeeIds = [];
 
   if (historyRes.ok) {
     const history = await historyRes.json();
@@ -133,6 +135,7 @@ async function loadDashboard() {
       else if (txn.status === "COMPENSATED") badgeClass = "bg-info text-dark";
       else if (txn.status === "PENDING") {
         badgeClass = "bg-warning text-dark";
+        state.pendingFeeIds.push(txn.feeId);
         actionBtn = `<button class="btn btn-sm btn-outline-danger ms-2 py-0" style="font-size: 0.75rem;" onclick="killPendingTxn('${txn.transactionId}')">Hủy</button>`;
       }
 
@@ -160,13 +163,17 @@ async function lookupTuition() {
     const fees = await res.json();
     fees.forEach((fee) => {
       const hasEnoughBalance = state.user.balance >= fee.amount;
-      const btnClass = hasEnoughBalance
+      let btnClass = hasEnoughBalance
         ? "btn-success"
         : "btn-secondary disabled";
-      const termsHtml = hasEnoughBalance
+      let termsHtml = hasEnoughBalance
         ? `<div class="form-check small"><input class="form-check-input term-check" type="checkbox" id="term_${fee.feeId}" onchange="togglePayBtn('${fee.feeId}')"><label class="form-check-label">Đồng ý điều khoản</label></div>`
         : `<span class="text-danger small">Số dư không đủ</span>`;
 
+      if (state.pendingFeeIds.includes(fee.feeId)) {
+        btnClass = "btn-secondary disabled";
+        termsHtml = `<span class="text-warning text-dark small fw-bold">Có giao dịch đang chờ (Xem Lịch sử)</span>`;
+      }
       tbody.innerHTML += `
                 <tr>
                     <td>${fee.mssv}</td>
@@ -279,6 +286,8 @@ async function submitPayment() {
     const errorData = await res.json();
     errorDiv.innerText = errorData.message || "Xác thực OTP thất bại.";
     errorDiv.classList.remove("hidden");
+    await loadDashboard();
+    lookupTuition();
   }
 }
 
@@ -298,5 +307,6 @@ async function killPendingTxn(transactionId) {
   await fetch(`${API.payment}/fail-orphaned/${transactionId}`, {
     method: "POST",
   });
-  loadDashboard();
+  await loadDashboard();
+  lookupTuition();
 }
