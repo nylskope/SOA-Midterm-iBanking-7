@@ -2,6 +2,7 @@ using IBankingTuition.Infrastructure.Adapters;
 using IBankingTuition.PaymentOrchestrator.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace IBankingTuition.PaymentOrchestrator.Sagas;
 
@@ -63,7 +64,10 @@ public class PaymentSaga
         var userUrl = _config["InternalServices:UserService"] ?? "http://localhost:5174";
         var tuitionUrl = _config["InternalServices:TuitionService"] ?? "http://localhost:5132";
 
-        var deductRes = await _internalClient.PostAsJsonAsync($"{userUrl}/api/users/{txn.UserId}/deduct", new { Amount = txn.Amount, RowVersion = userRowVersion });
+        var balanceRes = await _internalClient.GetFromJsonAsync<JsonElement>($"{userUrl}/api/users/{txn.UserId}/balance");
+        var freshUserRowVersion = balanceRes.GetProperty("rowVersion").GetInt32();
+
+        var deductRes = await _internalClient.PostAsJsonAsync($"{userUrl}/api/users/{txn.UserId}/deduct", new { Amount = txn.Amount, RowVersion = freshUserRowVersion });
         if (!deductRes.IsSuccessStatusCode)
         {
             txn.Status = "FAILED";
