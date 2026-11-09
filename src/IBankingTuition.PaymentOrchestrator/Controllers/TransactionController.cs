@@ -93,10 +93,10 @@ public class TransactionController : ControllerBase
         return Ok(history);
     }
 
-    [HttpPost("fail-orphaned/{transactionId}")]
-    public async Task<IActionResult> FailOrphanedTransaction(string transactionId)
+    [HttpPost("cancel-pending/{transactionId}")]
+    public async Task<IActionResult> CancelPendingTransaction(string transactionId)
     {
-        var result = await _saga.UpdateTransactionStatusAsync(transactionId, "FAILED");
+        var result = await _saga.UpdateTransactionStatusAsync(transactionId, "CANCELED");
         if (result) return Ok();
         return BadRequest(new { message = "Transaction not found or not in PENDING state." });
     }

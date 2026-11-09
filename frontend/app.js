@@ -299,14 +299,15 @@ function logout() {
 async function killPendingTxn(transactionId) {
   if (
     !confirm(
-      "Xác nhận hủy giao dịch đang treo này? Trạng thái sẽ chuyển sang THẤT BẠI.",
+      "Xác nhận hủy giao dịch đang treo này? Trạng thái sẽ chuyển sang CANCELED.",
     )
   )
     return;
 
-  await fetch(`${API.payment}/fail-orphaned/${transactionId}`, {
+  await fetch(`${API.payment}/cancel-pending/${transactionId}`, {
     method: "POST",
   });
+
   await loadDashboard();
   lookupTuition();
 }
