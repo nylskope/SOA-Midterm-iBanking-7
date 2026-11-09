@@ -44,7 +44,7 @@ VALUES ('F2026_1', '123H4567', 5000000.00, FALSE, 1),
 
 
 INSERT INTO "Users" ("UserId", "Username", "PasswordHash", "FullName", "Phone", "Email", "Balance", "RowVersion")
-VALUES ('U1002', 'student124', 'password_string', 'Dzuy', '0907654321', 'ganduytran2102@gmail.com', 150000000.00, 1);
+VALUES ('U1002', 'student124', 'password_string', 'Dzuy', '0907654321', 'ganduytran2102@gmail.com', 140000000.00, 1);
 
 INSERT INTO "Students" ("Mssv", "FullName") VALUES ('524H0012', 'Dzuy');
 
