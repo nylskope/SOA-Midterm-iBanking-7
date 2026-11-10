@@ -82,7 +82,7 @@ Before testing, proceed into the `db-init/init.sql` SQL script, scroll down to t
 3. Select fee `F_HAPPY` (5,000,000 VND), tick the box to accept terms, and click "Thanh Toán".
 4. Check your email inbox (that was configured in the database) for the 6-digit OTP, and enter the OTP as prompted.
 5. Enter the card information as prompted.
-7. Enter another OTP (will be sent automatically).
+6. Enter another OTP (will be sent automatically).
 7. **Observation:** You are redirected back to the UI. The balance is successfully deducted, the fee is marked as paid, and the transaction history shows `SUCCESS`. A receipt email is asynchronously dispatched.
 
 ### Scenario 2: Concurrency Handling - One User
@@ -92,7 +92,7 @@ Before testing, proceed into the `db-init/init.sql` SQL script, scroll down to t
 1. Open two separate browser tabs (one normal tab and one Incognito tab).
 2. Log in as **User 2** (`student124`) on both tabs who has exactly **15,000,000 VND**.
 3. Query for MSSV `199H0011` on both tabs. There are two fees: `F_SIMUL_1` and `F_SIMUL_2` (both 5,000,000 VND). Ignoring `F_OVER_1` and `F_OVER_2` for now.
-4. Initiate payment for `F_SIMUL_1` and `F_SIMUL_2` on Tab A and Tab B respectively, pausing both at the OTP screen.
+4. Initiate payment for `F_SIMUL_1` and `F_SIMUL_2` on Tab A and Tab B respectively. Proceed through the initial OTP and Card Details screens, pausing both tabs at the final OTP verification screen.
 5. Complete the payment in Tab A by entering the OTP.
 6. Then do the same for Tab B.
 7. **Observation:** Both tabs will succeed.
@@ -102,7 +102,7 @@ Before testing, proceed into the `db-init/init.sql` SQL script, scroll down to t
 1. Open two separate browser tabs (one normal tab and one Incognito tab).
 2. Log in as **User 2** (`student124`) on both tabs who should now have exactly **5,000,000 VND** once you have done **Concurrency 1**.
 3. Query for MSSV `199H0011` on both tabs. There should now be only two fees: `F_OVER_1` and `F_OVER_2`.
-4. Initiate payment for `F_OVER_1` and `F_OVER_2` on Tab A and Tab B respectively, pausing both at the OTP screen.
+4. Initiate payment for `F_OVER_1` and `F_OVER_2` on Tab A and Tab B respectively. Proceed through the initial OTP and Card Details screens, pausing both tabs at the final OTP verification screen.
 5. Complete the payment in Tab A by entering the OTP (Balance becomes 0).
 6. Then do the same for Tab B.
 7. **Observation:** Tab B will fail. Even though the payment succeeded, the User Service's physical database constraint (`CHK_PositiveBalance`) blocked the internal deduction. The Saga orchestrator marks the transaction as `FAILED`.
@@ -115,7 +115,7 @@ Before testing, proceed into the `db-init/init.sql` SQL script, scroll down to t
 2. Tab A: Log in as **User 1** (`student123`).
 3. Tab B: Log in as **User 3** (`student125`).
 4. In both tabs, search for MSSV `201H0022` and initiate payment for fee `F_DOUBLE`.
-5. Enter the respective OTPs and proceed to the card information prompt screen in both tabs.
+5. Proceed through the initial OTP and Card Details screens in both tabs, pausing at the final OTP verification screen.
 6. **Tab A:** Complete the payment first. There should be a success screen.
 7. **Tab B:** Complete the payment after Tab A.
 8. **Observation:** Tab B will display a transaction failure screen. The Orchestrator detected a stale `RowVersion` via Optimistic Concurrency Control (OCC) and aborted the database commit. Check User 3's transaction history to see the `COMPENSATED` status, proving the auto-refund Saga executed successfully.
