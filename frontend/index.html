@@ -20,8 +20,8 @@
                 border: none;
                 border-radius: 10px;
             }
-            .ncb-theme {
-                border-top: 4px solid #005eb8;
+            .letter-spacing-custom {
+                letter-spacing: 0.25rem;
             }
         </style>
     </head>
@@ -121,78 +121,51 @@
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- NCB Gateway View (Simulated Redirect) -->
-            <div id="ncb-gateway-view" class="row justify-content-center hidden">
-                <div class="col-md-6">
-                    <div class="card card-custom ncb-theme p-5">
-                        <div class="text-center mb-4">
-                            <h3 style="color: #005eb8; font-weight: bold;">NCB Payment Gateway</h3>
-                            <p class="text-muted fs-5">Cổng thanh toán nội địa</p>
-                        </div>
-
-                        <div class="alert alert-info text-center mb-4">
-                            Số tiền thanh toán: <strong id="ncb-payment-amount" class="fs-4">0 VND</strong>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label text-secondary fs-6 fw-bold">SỐ THẺ</label>
-                            <input type="text" id="ncb-card-id" class="form-control form-control-lg" placeholder="Nhập dãy số in trên thẻ..." />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-secondary fs-6 fw-bold">TÊN IN TRÊN THẺ</label>
-                            <input type="text" id="ncb-card-name" class="form-control form-control-lg" placeholder="Viết hoa không dấu..." />
-                        </div>
-                        <div class="mb-4">
-                            <label class="form-label text-secondary fs-6 fw-bold">NGÀY PHÁT HÀNH</label>
-                            <input type="text" id="ncb-card-date" class="form-control form-control-lg" placeholder="MM/YY" maxlength="5" oninput="formatDateInput(this)" />
-                        </div>
-
-                        <button onclick="processNcbCard()" class="btn btn-lg w-100 mb-2 text-white" style="background-color: #005eb8;" id="btn-process-ncb">Xác Nhận Thẻ</button>
-                        <button onclick="cancelNcbPayment()" class="btn btn-outline-secondary w-100">Hủy Giao Dịch</button>
-
-                        <div id="ncb-card-error" class="text-danger mt-3 text-center hidden"></div>
+        <!-- Terms and Conditions Modal -->
+        <div class="modal fade" id="termsModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Xác Nhận Điều Khoản</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                </div>
-            </div>
-
-            <!-- NCB OTP Verification View -->
-            <div id="ncb-otp-view" class="row justify-content-center hidden">
-                <div class="col-md-5">
-                    <div class="card card-custom ncb-theme p-5">
-                        <h4 class="text-center mb-3 fw-bold" style="color: #005eb8;">Xác Thực OTP Ngân Hàng</h4>
-                        <p class="text-center fs-6 text-muted mb-4">Mã xác thực đã được gửi đến email liên kết với thẻ NCB của bạn. Vui lòng nhập để hoàn tất giao dịch.</p>
-
-                        <input type="text" id="ncb-otp-code" class="form-control form-control-lg mb-4 text-center fs-3 letter-spacing-custom" placeholder="------" maxlength="6" />
-
-                        <button onclick="submitPayment()" class="btn btn-success btn-lg w-100" id="btn-submit-payment">Thanh Toán Ngay</button>
-                        <button onclick="cancelNcbPayment()" class="btn btn-outline-secondary w-100 mt-3">Hủy Giao Dịch</button>
-
-                        <div id="payment-error" class="text-danger mt-3 text-center hidden"></div>
+                    <div class="modal-body">
+                        <p>Bằng việc tiếp tục giao dịch, bạn đồng ý với các điều khoản sau:</p>
+                        <ul>
+                            <li>Giao dịch sẽ trừ trực tiếp vào số dư tài khoản của bạn.</li>
+                            <li>Học phí chỉ được gạch nợ sau khi giao dịch thành công.</li>
+                            <li>Hệ thống sẽ gửi mã xác thực (OTP) qua email. Mã chỉ có hiệu lực trong 5 phút.</li>
+                        </ul>
+                        <div class="alert alert-warning small">
+                            Lưu ý: Không chia sẻ mã OTP với bất kỳ ai để đảm bảo an toàn tài sản.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Từ Chối</button>
+                        <button type="button" class="btn btn-primary" onclick="acceptTermsAndInitPayment()">Đồng Ý & Tiếp Tục</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Initial iBanking OTP Modal -->
+        <!-- OTP Modal -->
         <div class="modal fade" id="otpModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Xác Thực iBanking</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="canceliBankingPayment()"></button>
+                        <h5 class="modal-title">Xác Thực Giao Dịch</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="cancelPendingPayment()"></button>
                     </div>
                     <div class="modal-body">
-                        <div id="otp-step-1">
-                            <p>Mã OTP sẽ được gửi đến email: <strong id="otp-email-display"></strong></p>
-                            <button onclick="requestOtp()" class="btn btn-primary w-100" id="btn-request-otp">Gửi OTP</button>
-                        </div>
-                        <div id="otp-step-2" class="hidden">
-                            <p class="text-success">OTP đã được gửi! Vui lòng kiểm tra email (Hiệu lực 5 phút).</p>
-                            <input type="text" id="otp-code" class="form-control mb-3" placeholder="Nhập mã 6 số" maxlength="6" />
-                            <button onclick="verifyFirstOtp()" class="btn btn-success w-100" id="btn-verify-first-otp">Xác Nhận</button>
-                            <div id="first-otp-error" class="text-danger mt-2 hidden text-center"></div>
-                        </div>
+                        <p class="text-center">Mã OTP đã được gửi đến email: <br/><strong id="otp-email-display" class="text-primary"></strong></p>
+                        <p class="text-success text-center small">Vui lòng kiểm tra email (Hiệu lực 5 phút).</p>
+
+                        <input type="text" id="otp-code" class="form-control form-control-lg mb-4 mt-3 text-center fs-3 letter-spacing-custom" placeholder="------" maxlength="6" />
+
+                        <button onclick="submitPayment()" class="btn btn-success btn-lg w-100" id="btn-submit-payment">Thanh Toán</button>
+                        <div id="payment-error" class="text-danger mt-3 text-center hidden"></div>
                     </div>
                 </div>
             </div>
