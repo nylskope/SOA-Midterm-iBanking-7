@@ -79,10 +79,6 @@ services:
     environment:
       - ASPNETCORE_HTTP_PORTS=80
       - ConnectionStrings__DefaultConnection=Host=ibanking_postgres;Port=5432;Database=IBankingTuitionDb;Username=postgres;Password=password123
-      - VNPay__TmnCode=${VNPAY_TMN_CODE}
-      - VNPay__HashSecret=${VNPAY_HASH_SECRET}
-      - VNPay__BaseUrl=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
-      - VNPay__ReturnUrl=http://localhost:5004/api/transactions/return
       - InternalServices__OtpService=http://otp-service:80
       - InternalServices__UserService=http://user-service:80
       - InternalServices__TuitionService=http://tuition-service:80

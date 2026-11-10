@@ -9,23 +9,12 @@ let state = {
   user: JSON.parse(localStorage.getItem("user")) || null,
   userRowVersion: 1,
   pendingPayment: null,
-  pendingFeeIds: [],
+  history: []
 };
 
 const otpModal = new bootstrap.Modal(document.getElementById("otpModal"));
 
 window.onload = async () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const status = urlParams.get("status");
-
-  if (status) {
-    document.getElementById("login-view").classList.add("hidden");
-    document.getElementById("dashboard-view").classList.add("hidden");
-    document.getElementById("callback-view").classList.remove("hidden");
-    processVnpayCallback(urlParams);
-    return;
-  }
-
   if (state.user) {
     document.getElementById("login-view").classList.add("hidden");
     document.getElementById("dashboard-view").classList.remove("hidden");
@@ -38,54 +27,6 @@ window.onload = async () => {
     await loadDashboard();
   }
 };
-
-function processVnpayCallback(urlParams) {
-  const status = urlParams.get("status");
-  const txn = urlParams.get("txn");
-  const alertDiv = document.getElementById("callback-alert");
-  const title = document.getElementById("callback-title");
-  const msg = document.getElementById("callback-message");
-  const spinner = document.getElementById("callback-spinner");
-  const countdownContainer = document.getElementById(
-    "callback-countdown-container",
-  );
-
-  spinner.classList.add("hidden");
-  countdownContainer.classList.remove("hidden");
-
-  if (status === "success") {
-    alertDiv.className = "alert alert-success p-5 shadow-sm text-center";
-    title.innerText = "Giao dịch thành công!";
-    msg.innerHTML = `Mã GD: <strong>${txn}</strong><br>Học phí đã được thanh toán thành công qua VNPAY.`;
-  } else if (status === "canceled") {
-    alertDiv.className = "alert alert-warning p-5 shadow-sm text-center";
-    title.innerText = "Giao dịch đã bị hủy!";
-    msg.innerHTML = `Mã GD: <strong>${txn}</strong><br>Bạn đã chủ động hủy thanh toán tại cổng VNPAY.`;
-  } else {
-    let errorReason = "Lỗi hệ thống không xác định.";
-    if (status === "conflict")
-      errorReason =
-        "Giao dịch bị từ chối do xung đột dữ liệu hoặc số dư không đủ.";
-
-    alertDiv.className = "alert alert-danger p-5 shadow-sm text-center";
-    title.innerText = "Giao dịch thất bại!";
-    msg.innerHTML = `Mã GD: <strong>${txn}</strong><br>${errorReason}`;
-  }
-
-  let seconds = 5;
-  const interval = setInterval(() => {
-    seconds--;
-    document.getElementById("callback-countdown").innerText = seconds;
-    if (seconds <= 0) {
-      clearInterval(interval);
-      returnToDashboard();
-    }
-  }, 1000);
-}
-
-function returnToDashboard() {
-  window.location.href = "/";
-}
 
 async function login() {
   const username = document.getElementById("username").value;
@@ -115,29 +56,27 @@ async function loadDashboard() {
   const balanceData = await balanceRes.json();
   state.userRowVersion = balanceData.rowVersion;
   state.user.balance = balanceData.balance;
-  document.getElementById("user-balance").innerText =
-    balanceData.balance.toLocaleString() + " VND";
+  document.getElementById("user-balance").innerText = balanceData.balance.toLocaleString() + " VND";
 
   const historyRes = await fetch(`${API.payment}/history/${state.user.userId}`);
   const historyBody = document.getElementById("history-table-body");
   historyBody.innerHTML = "";
-  state.pendingFeeIds = [];
 
   if (historyRes.ok) {
-    const history = await historyRes.json();
-    history.forEach((txn) => {
+    state.history = await historyRes.json();
+    state.history.forEach((txn) => {
       let badgeClass = "bg-secondary";
-      let actionBtn = "";
 
       if (txn.status === "SUCCESS") badgeClass = "bg-success";
       else if (txn.status === "FAILED") badgeClass = "bg-danger";
       else if (txn.status === "CANCELED") badgeClass = "bg-secondary";
       else if (txn.status === "COMPENSATED") badgeClass = "bg-info text-dark";
-      else if (txn.status === "PENDING") {
-        badgeClass = "bg-warning text-dark";
-        state.pendingFeeIds.push(txn.feeId);
-        actionBtn = `<button class="btn btn-sm btn-outline-danger ms-2 py-0" style="font-size: 0.75rem;" onclick="killPendingTxn('${txn.transactionId}')">Hủy</button>`;
-      }
+      else if (txn.status === "PENDING") badgeClass = "bg-warning text-dark";
+
+      // Add a quick action cancel button to the history table for abandoned PENDING transactions
+      let actionBtn = txn.status === "PENDING"
+        ? `<button class="btn btn-sm btn-outline-danger ms-2 py-0 px-1" style="font-size: 0.75rem;" onclick="cancelTransactionFromHistory('${txn.transactionId}')">Hủy</button>`
+        : "";
 
       historyBody.innerHTML += `
                 <tr>
@@ -162,18 +101,26 @@ async function lookupTuition() {
   if (res.ok) {
     const fees = await res.json();
     fees.forEach((fee) => {
+      // Check if there is already a PENDING transaction globally for this fee
+      const isFeePending = state.history.some(t => t.feeId === fee.feeId && t.status === "PENDING");
       const hasEnoughBalance = state.user.balance >= fee.amount;
-      let btnClass = hasEnoughBalance
-        ? "btn-success"
-        : "btn-secondary disabled";
-      let termsHtml = hasEnoughBalance
-        ? `<div class="form-check small"><input class="form-check-input term-check" type="checkbox" id="term_${fee.feeId}" onchange="togglePayBtn('${fee.feeId}')"><label class="form-check-label">Đồng ý điều khoản</label></div>`
-        : `<span class="text-danger small">Số dư không đủ</span>`;
 
-      if (state.pendingFeeIds.includes(fee.feeId)) {
+      let btnClass = "";
+      let termsHtml = "";
+      let btnText = "Thanh Toán";
+
+      if (isFeePending) {
+        btnClass = "btn-warning disabled";
+        termsHtml = `<span class="text-warning small fw-bold">Đang có GD chờ xử lý</span>`;
+        btnText = "Đang xử lý";
+      } else if (!hasEnoughBalance) {
         btnClass = "btn-secondary disabled";
-        termsHtml = `<span class="text-warning text-dark small fw-bold">Có giao dịch đang chờ (Xem Lịch sử)</span>`;
+        termsHtml = `<span class="text-danger small">Số dư không đủ</span>`;
+      } else {
+        btnClass = "btn-success";
+        termsHtml = `<div class="form-check small"><input class="form-check-input term-check" type="checkbox" id="term_${fee.feeId}" onchange="togglePayBtn('${fee.feeId}')"><label class="form-check-label">Đồng ý điều khoản</label></div>`;
       }
+
       tbody.innerHTML += `
                 <tr>
                     <td>${fee.mssv}</td>
@@ -183,8 +130,8 @@ async function lookupTuition() {
                     <td>
                         ${termsHtml}
                         <button id="paybtn_${fee.feeId}" class="btn btn-sm ${btnClass} mt-1"
-                            onclick="initiatePayment('${fee.feeId}', ${fee.amount}, ${fee.rowVersion})" disabled>
-                            Thanh Toán
+                            onclick="initiatePayment('${fee.feeId}', ${fee.amount}, ${fee.rowVersion})" ${isFeePending || !hasEnoughBalance ? 'disabled' : 'disabled'}>
+                            ${btnText}
                         </button>
                     </td>
                 </tr>
@@ -212,20 +159,48 @@ function handleLoginKeyPress(event) {
 function togglePayBtn(feeId) {
   const checkbox = document.getElementById(`term_${feeId}`);
   const btn = document.getElementById(`paybtn_${feeId}`);
-  btn.disabled = !checkbox.checked;
+  if(btn) btn.disabled = !checkbox.checked;
 }
 
-function initiatePayment(feeId, amount, tuitionRowVersion) {
+// 1. Initial Flow - Registers PENDING in DB, then Shows iBanking OTP
+async function initiatePayment(feeId, amount, tuitionRowVersion) {
+  const transactionId = `TXN_${Date.now()}`;
+
+  // Register as PENDING globally via backend
+  const res = await fetch(`${API.payment}/init`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+          transactionId: transactionId,
+          userId: state.user.userId,
+          feeId: feeId,
+          amount: amount
+      })
+  });
+
+  if (!res.ok) {
+      const data = await res.json();
+      alert(data.message || "Không thể khởi tạo giao dịch.");
+      await loadDashboard();
+      lookupTuition();
+      return;
+  }
+
   state.pendingPayment = {
-    transactionId: `TXN_${Date.now()}`,
+    transactionId: transactionId,
     feeId: feeId,
     amount: amount,
     tuitionRowVersion: tuitionRowVersion,
   };
 
+  // Refresh background UI to reflect the PENDING status and disable buttons
+  await loadDashboard();
+  lookupTuition();
+
   document.getElementById("otp-step-1").classList.remove("hidden");
   document.getElementById("otp-step-2").classList.add("hidden");
-  document.getElementById("payment-error").classList.add("hidden");
+  document.getElementById("first-otp-error").classList.add("hidden");
+
   document.getElementById("otp-email-display").innerText = state.user.email;
   document.getElementById("otp-code").value = "";
 
@@ -252,13 +227,107 @@ async function requestOtp() {
   }
 }
 
-async function submitPayment() {
+// 2. Verify Initial OTP - Transitions to NCB Simulation
+async function verifyFirstOtp() {
   const otpCode = document.getElementById("otp-code").value;
   if (!otpCode) return;
 
-  document.getElementById("btn-submit-payment").disabled = true;
+  const btn = document.getElementById("btn-verify-first-otp");
+  btn.disabled = true;
+
+  const res = await fetch(`${API.otp}/${state.pendingPayment.transactionId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: otpCode })
+  });
+
+  btn.disabled = false;
+
+  if (res.ok) {
+      otpModal.hide();
+      document.getElementById("dashboard-view").classList.add("hidden");
+      document.getElementById("ncb-gateway-view").classList.remove("hidden");
+
+      document.getElementById("ncb-payment-amount").innerText = state.pendingPayment.amount.toLocaleString() + " VND";
+
+      document.getElementById("ncb-card-id").value = "";
+      document.getElementById("ncb-card-name").value = "";
+      document.getElementById("ncb-card-date").value = "";
+      document.getElementById("ncb-card-error").classList.add("hidden");
+  } else {
+      const errorDiv = document.getElementById("first-otp-error");
+      errorDiv.innerText = "Mã OTP không hợp lệ hoặc đã hết hạn.";
+      errorDiv.classList.remove("hidden");
+  }
+}
+
+function formatDateInput(input) {
+  let val = input.value.replace(/\D/g, '');
+
+  if (val.length > 2) {
+      val = val.substring(0, 2) + '/' + val.substring(2, 4);
+  }
+
+  input.value = val;
+}
+
+// 3. NCB Card Details
+async function processNcbCard() {
+  const id = document.getElementById("ncb-card-id").value.trim();
+  const name = document.getElementById("ncb-card-name").value.trim().toUpperCase();
+  const date = document.getElementById("ncb-card-date").value.trim();
+  const errorDiv = document.getElementById("ncb-card-error");
+  const btn = document.getElementById("btn-process-ncb");
+
+  if (id !== "9704198526191432198" || name !== "NGUYEN VAN A" || date !== "07/15") {
+      errorDiv.innerText = "Thông tin thẻ không chính xác. Vui lòng kiểm tra lại.";
+      errorDiv.classList.remove("hidden");
+      return;
+  }
+
+  errorDiv.classList.add("hidden");
+  btn.disabled = true;
+  btn.innerText = "Đang xử lý...";
+
+  const res = await fetch(API.otp, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+          transactionId: state.pendingPayment.transactionId,
+          email: state.user.email,
+      }),
+  });
+
+  btn.disabled = false;
+  btn.innerText = "Xác Nhận Thẻ";
+
+  if (res.ok) {
+      document.getElementById("ncb-gateway-view").classList.add("hidden");
+      document.getElementById("ncb-otp-view").classList.remove("hidden");
+      document.getElementById("ncb-otp-code").value = "";
+  } else {
+      errorDiv.innerText = "Lỗi hệ thống khi gửi OTP ngân hàng. Vui lòng thử lại.";
+      errorDiv.classList.remove("hidden");
+  }
+}
+
+// 4. Final Submission
+async function submitPayment() {
+  const otpCode = document.getElementById("ncb-otp-code").value;
+  if (!otpCode) return;
+
+  const btn = document.getElementById("btn-submit-payment");
+  btn.disabled = true;
+  btn.innerText = "Đang xử lý...";
+
   const errorDiv = document.getElementById("payment-error");
   errorDiv.classList.add("hidden");
+
+  const freshBalanceRes = await fetch(`${API.user}/${state.user.userId}/balance`);
+  if (freshBalanceRes.ok) {
+      const freshData = await freshBalanceRes.json();
+      state.userRowVersion = freshData.rowVersion;
+  }
 
   const payload = {
     transactionId: state.pendingPayment.transactionId,
@@ -277,37 +346,62 @@ async function submitPayment() {
     body: JSON.stringify(payload),
   });
 
-  document.getElementById("btn-submit-payment").disabled = false;
+  btn.disabled = false;
+  btn.innerText = "Thanh Toán Ngay";
 
   if (res.ok) {
-    const data = await res.json();
-    window.location.href = data.paymentUrl;
+    document.getElementById("ncb-otp-view").classList.add("hidden");
+    document.getElementById("dashboard-view").classList.remove("hidden");
+    state.pendingPayment = null;
+
+    const alertDiv = document.getElementById("payment-result-alert");
+    alertDiv.className = "alert alert-success text-center mb-4";
+    alertDiv.innerHTML = `<strong>Thành công!</strong> Đã thanh toán học phí.`;
+    alertDiv.classList.remove("hidden");
+    setTimeout(() => { alertDiv.classList.add("hidden"); }, 4000);
+
   } else {
     const errorData = await res.json();
-    errorDiv.innerText = errorData.message || "Xác thực OTP thất bại.";
+    errorDiv.innerText = errorData.message || "Giao dịch thất bại.";
     errorDiv.classList.remove("hidden");
-    await loadDashboard();
-    lookupTuition();
+  }
+
+  await loadDashboard();
+  lookupTuition();
+}
+
+// Global Cancellation Methods
+async function cancelNcbPayment() {
+  if (state.pendingPayment) {
+      await fetch(`${API.payment}/cancel/${state.pendingPayment.transactionId}`, { method: "POST" });
+  }
+  document.getElementById("ncb-gateway-view").classList.add("hidden");
+  document.getElementById("ncb-otp-view").classList.add("hidden");
+  document.getElementById("dashboard-view").classList.remove("hidden");
+  state.pendingPayment = null;
+
+  await loadDashboard();
+  lookupTuition();
+}
+
+async function canceliBankingPayment() {
+  if (state.pendingPayment) {
+      await fetch(`${API.payment}/cancel/${state.pendingPayment.transactionId}`, { method: "POST" });
+      state.pendingPayment = null;
+      await loadDashboard();
+      lookupTuition();
+  }
+}
+
+async function cancelTransactionFromHistory(txId) {
+  if(confirm("Bạn có chắc chắn muốn hủy giao dịch này không?")) {
+      await fetch(`${API.payment}/cancel/${txId}`, { method: "POST" });
+      await loadDashboard();
+      lookupTuition();
   }
 }
 
 function logout() {
   localStorage.removeItem("user");
   location.reload();
-}
-
-async function killPendingTxn(transactionId) {
-  if (
-    !confirm(
-      "Xác nhận hủy giao dịch đang treo này? Trạng thái sẽ chuyển sang CANCELED.",
-    )
-  )
-    return;
-
-  await fetch(`${API.payment}/cancel-pending/${transactionId}`, {
-    method: "POST",
-  });
-
-  await loadDashboard();
-  lookupTuition();
 }

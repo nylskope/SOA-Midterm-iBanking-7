@@ -1,4 +1,3 @@
-using IBankingTuition.Infrastructure.Adapters;
 using IBankingTuition.PaymentOrchestrator.Sagas;
 using IBankingTuition.PaymentOrchestrator.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -11,14 +10,52 @@ namespace IBankingTuition.PaymentOrchestrator.Controllers;
 public class TransactionController : ControllerBase
 {
     private readonly PaymentSaga _saga;
-    private readonly IConfiguration _config;
     private readonly TransactionDbContext _dbContext;
 
-    public TransactionController(PaymentSaga saga, IConfiguration config, TransactionDbContext dbContext)
+    public TransactionController(PaymentSaga saga, TransactionDbContext dbContext)
     {
         _saga = saga;
-        _config = config;
         _dbContext = dbContext;
+    }
+
+    [HttpPost("init")]
+    public async Task<IActionResult> InitTransaction([FromBody] InitTransactionRequest req)
+    {
+        // 1. Prevent the SAME user from creating multiple PENDING transactions for the SAME fee.
+        // (By checking t.UserId == req.UserId, DIFFERENT users can still initiate the same fee concurrently for Scenario 3)
+        var isAlreadyPending = await _dbContext.Transactions
+            .AnyAsync(t => t.FeeId == req.FeeId && t.UserId == req.UserId && t.Status == "PENDING");
+
+        if (isAlreadyPending)
+            return BadRequest(new { message = "Bạn đang có một giao dịch chờ xử lý cho khoản học phí này. Vui lòng hoàn tất hoặc hủy giao dịch cũ trong Lịch sử." });
+
+        var txn = new TransactionRecord {
+            TransactionId = req.TransactionId,
+            UserId = req.UserId,
+            FeeId = req.FeeId,
+            Amount = req.Amount,
+            Status = "PENDING"
+        };
+
+        _dbContext.Transactions.Add(txn);
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(txn);
+    }
+
+    [HttpPost("cancel/{transactionId}")]
+    public async Task<IActionResult> CancelTransaction(string transactionId)
+    {
+        var txn = await _dbContext.Transactions.FindAsync(transactionId);
+        if (txn == null) return NotFound();
+
+        // Only allow canceling if it hasn't been finalized yet
+        if (txn.Status == "PENDING") {
+            txn.Status = "CANCELED";
+            await _dbContext.SaveChangesAsync();
+        }
+
+        return Ok(txn);
     }
 
     [HttpPost("pay")]
@@ -27,60 +64,6 @@ public class TransactionController : ControllerBase
         var result = await _saga.ExecuteAsync(command);
         if (!result.Success) return BadRequest(new { message = result.Message });
         return Ok(result);
-    }
-
-    [HttpGet("return")]
-    public async Task<IActionResult> VNPayReturn(
-            [FromQuery] string vnp_TxnRef,
-            [FromQuery] int userRowVersion,
-            [FromQuery] int tuitionRowVersion,
-            [FromQuery] string email)
-    {
-        var query = Request.Query;
-        var hashSecret = _config["VNPay:HashSecret"] ?? throw new ArgumentNullException("VNPay HashSecret missing");
-        var vnpay = new VnPayLibrary();
-
-        foreach (var kvp in query)
-        {
-            if (!string.IsNullOrEmpty(kvp.Key) && kvp.Key.StartsWith("vnp_"))
-            {
-                vnpay.AddResponseData(kvp.Key, kvp.Value.ToString());
-            }
-        }
-
-        var vnp_SecureHash = Request.Query["vnp_SecureHash"].ToString();
-        bool checkSignature = vnpay.ValidateSignature(vnp_SecureHash, hashSecret);
-
-        if (checkSignature)
-        {
-            var responseCode = vnpay.GetResponseData("vnp_ResponseCode");
-
-            if (responseCode == "00" && vnpay.GetResponseData("vnp_TransactionStatus") == "00")
-            {
-                var finalizationSuccess = await _saga.CompletePaymentAsync(vnp_TxnRef, userRowVersion, tuitionRowVersion, email);
-                if (finalizationSuccess)
-                {
-                    return Redirect($"http://localhost:3000/?status=success&txn={vnp_TxnRef}");
-                }
-                else
-                {
-                    return Redirect($"http://localhost:3000/?status=conflict&txn={vnp_TxnRef}");
-                }
-            }
-            else if (responseCode == "24")
-            {
-                await _saga.UpdateTransactionStatusAsync(vnp_TxnRef, "CANCELED");
-                return Redirect($"http://localhost:3000/?status=canceled&txn={vnp_TxnRef}");
-            }
-            else
-            {
-                await _saga.UpdateTransactionStatusAsync(vnp_TxnRef, "FAILED");
-                return Redirect($"http://localhost:3000/?status=failed&txn={vnp_TxnRef}");
-            }
-        }
-
-        await _saga.UpdateTransactionStatusAsync(vnp_TxnRef, "FAILED");
-        return Redirect("http://localhost:3000/?status=invalid_signature");
     }
 
     [HttpGet("history/{userId}")]
@@ -92,12 +75,6 @@ public class TransactionController : ControllerBase
             .ToListAsync();
         return Ok(history);
     }
-
-    [HttpPost("cancel-pending/{transactionId}")]
-    public async Task<IActionResult> CancelPendingTransaction(string transactionId)
-    {
-        var result = await _saga.UpdateTransactionStatusAsync(transactionId, "CANCELED");
-        if (result) return Ok();
-        return BadRequest(new { message = "Transaction not found or not in PENDING state." });
-    }
 }
+
+public record InitTransactionRequest(string TransactionId, string UserId, string FeeId, decimal Amount);

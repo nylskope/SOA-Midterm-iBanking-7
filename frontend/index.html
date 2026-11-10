@@ -20,147 +20,60 @@
                 border: none;
                 border-radius: 10px;
             }
+            .ncb-theme {
+                border-top: 4px solid #005eb8;
+            }
         </style>
     </head>
     <body>
         <div class="container mt-5 mb-5">
-            <div
-                id="payment-result-alert"
-                class="alert hidden text-center"
-                role="alert"
-            ></div>
+            <div id="payment-result-alert" class="alert hidden text-center mb-4" role="alert"></div>
 
-            <div
-                id="callback-view"
-                class="row justify-content-center hidden mb-5"
-            >
-                <div class="col-md-8">
-                    <div
-                        id="callback-alert"
-                        class="alert p-5 shadow-sm text-center"
-                        role="alert"
-                    >
-                        <h3 id="callback-title" class="mb-3">
-                            Đang xử lý giao dịch...
-                        </h3>
-                        <p id="callback-message" class="mb-4 text-muted">
-                            Vui lòng không đóng trình duyệt.
-                        </p>
-
-                        <div
-                            class="spinner-border text-primary mb-3"
-                            role="status"
-                            id="callback-spinner"
-                        >
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-
-                        <div id="callback-countdown-container" class="hidden">
-                            <p class="mb-4">
-                                Tự động quay lại sau
-                                <strong id="callback-countdown">5</strong>
-                                giây...
-                            </p>
-                            <button
-                                class="btn btn-primary px-4"
-                                onclick="returnToDashboard()"
-                            >
-                                Quay lại ngay
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+            <!-- Login View -->
             <div id="login-view" class="row justify-content-center">
                 <div class="col-md-5">
                     <div class="card card-custom p-4">
                         <h3 class="text-center mb-4">iBanking Login</h3>
                         <div class="mb-3">
                             <label class="form-label">Username</label>
-                            <input
-                                type="text"
-                                id="username"
-                                class="form-control"
-                                value="student123"
-                                onkeypress="handleLoginKeyPress(event)"
-                            />
+                            <input type="text" id="username" class="form-control" value="student123" onkeypress="handleLoginKeyPress(event)" />
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Password</label>
-                            <input
-                                type="password"
-                                id="password"
-                                class="form-control"
-                                value="password_string"
-                                onkeypress="handleLoginKeyPress(event)"
-                            />
+                            <input type="password" id="password" class="form-control" value="password_string" onkeypress="handleLoginKeyPress(event)" />
                         </div>
-                        <button onclick="login()" class="btn btn-primary w-100">
-                            Login
-                        </button>
-                        <div
-                            id="login-error"
-                            class="text-danger mt-3 text-center hidden"
-                        >
-                            Invalid credentials
-                        </div>
+                        <button onclick="login()" class="btn btn-primary w-100">Login</button>
+                        <div id="login-error" class="text-danger mt-3 text-center hidden">Invalid credentials</div>
                     </div>
                 </div>
             </div>
 
+            <!-- Dashboard View -->
             <div id="dashboard-view" class="hidden">
-                <div
-                    class="d-flex justify-content-between align-items-center mb-4"
-                >
+                <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2>Welcome, <span id="user-fullname"></span></h2>
-                    <button onclick="logout()" class="btn btn-outline-danger">
-                        Logout
-                    </button>
+                    <button onclick="logout()" class="btn btn-outline-danger">Logout</button>
                 </div>
 
                 <div class="row">
                     <div class="col-md-4 mb-4">
-                        <div
-                            class="card card-custom p-4 bg-primary text-white mb-3"
-                        >
+                        <div class="card card-custom p-4 bg-primary text-white mb-3">
                             <h5>Số dư khả dụng</h5>
                             <h3 id="user-balance">0 VND</h3>
                         </div>
                         <div class="card card-custom p-4">
                             <h5 class="mb-3">Thông tin người nộp</h5>
                             <div class="mb-2">
-                                <label class="form-label text-muted small mb-0"
-                                    >Họ và tên</label
-                                >
-                                <input
-                                    type="text"
-                                    id="payer-name"
-                                    class="form-control form-control-sm"
-                                    readonly
-                                />
+                                <label class="form-label text-muted small mb-0">Họ và tên</label>
+                                <input type="text" id="payer-name" class="form-control form-control-sm" readonly />
                             </div>
                             <div class="mb-2">
-                                <label class="form-label text-muted small mb-0"
-                                    >Số điện thoại</label
-                                >
-                                <input
-                                    type="text"
-                                    id="payer-phone"
-                                    class="form-control form-control-sm"
-                                    readonly
-                                />
+                                <label class="form-label text-muted small mb-0">Số điện thoại</label>
+                                <input type="text" id="payer-phone" class="form-control form-control-sm" readonly />
                             </div>
                             <div class="mb-2">
-                                <label class="form-label text-muted small mb-0"
-                                    >Địa chỉ email</label
-                                >
-                                <input
-                                    type="text"
-                                    id="payer-email"
-                                    class="form-control form-control-sm"
-                                    readonly
-                                />
+                                <label class="form-label text-muted small mb-0">Địa chỉ email</label>
+                                <input type="text" id="payer-email" class="form-control form-control-sm" readonly />
                             </div>
                         </div>
                     </div>
@@ -169,20 +82,8 @@
                         <div class="card card-custom p-4 mb-4">
                             <h5 class="mb-3">Tra cứu học phí</h5>
                             <div class="input-group mb-3">
-                                <input
-                                    type="text"
-                                    id="search-mssv"
-                                    class="form-control"
-                                    placeholder="Nhập Mã số sinh viên (MSSV)..."
-                                    value="123H4567"
-                                    onkeypress="handleSearchKeyPress(event)"
-                                />
-                                <button
-                                    class="btn btn-primary"
-                                    onclick="lookupTuition()"
-                                >
-                                    Tra cứu
-                                </button>
+                                <input type="text" id="search-mssv" class="form-control" placeholder="Nhập Mã số sinh viên (MSSV)..." value="123H4567" onkeypress="handleSearchKeyPress(event)" />
+                                <button class="btn btn-primary" onclick="lookupTuition()">Tra cứu</button>
                             </div>
 
                             <table class="table table-hover mt-3">
@@ -197,12 +98,7 @@
                                 </thead>
                                 <tbody id="tuition-table-body">
                                     <tr>
-                                        <td
-                                            colspan="5"
-                                            class="text-center text-muted"
-                                        >
-                                            Vui lòng nhập MSSV để tra cứu.
-                                        </td>
+                                        <td colspan="5" class="text-center text-muted">Vui lòng nhập MSSV để tra cứu.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -225,58 +121,78 @@
                     </div>
                 </div>
             </div>
+
+            <!-- NCB Gateway View (Simulated Redirect) -->
+            <div id="ncb-gateway-view" class="row justify-content-center hidden">
+                <div class="col-md-6">
+                    <div class="card card-custom ncb-theme p-5">
+                        <div class="text-center mb-4">
+                            <h3 style="color: #005eb8; font-weight: bold;">NCB Payment Gateway</h3>
+                            <p class="text-muted fs-5">Cổng thanh toán nội địa</p>
+                        </div>
+
+                        <div class="alert alert-info text-center mb-4">
+                            Số tiền thanh toán: <strong id="ncb-payment-amount" class="fs-4">0 VND</strong>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-secondary fs-6 fw-bold">SỐ THẺ</label>
+                            <input type="text" id="ncb-card-id" class="form-control form-control-lg" placeholder="Nhập dãy số in trên thẻ..." />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-secondary fs-6 fw-bold">TÊN IN TRÊN THẺ</label>
+                            <input type="text" id="ncb-card-name" class="form-control form-control-lg" placeholder="Viết hoa không dấu..." />
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label text-secondary fs-6 fw-bold">NGÀY PHÁT HÀNH</label>
+                            <input type="text" id="ncb-card-date" class="form-control form-control-lg" placeholder="MM/YY" maxlength="5" oninput="formatDateInput(this)" />
+                        </div>
+
+                        <button onclick="processNcbCard()" class="btn btn-lg w-100 mb-2 text-white" style="background-color: #005eb8;" id="btn-process-ncb">Xác Nhận Thẻ</button>
+                        <button onclick="cancelNcbPayment()" class="btn btn-outline-secondary w-100">Hủy Giao Dịch</button>
+
+                        <div id="ncb-card-error" class="text-danger mt-3 text-center hidden"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NCB OTP Verification View -->
+            <div id="ncb-otp-view" class="row justify-content-center hidden">
+                <div class="col-md-5">
+                    <div class="card card-custom ncb-theme p-5">
+                        <h4 class="text-center mb-3 fw-bold" style="color: #005eb8;">Xác Thực OTP Ngân Hàng</h4>
+                        <p class="text-center fs-6 text-muted mb-4">Mã xác thực đã được gửi đến email liên kết với thẻ NCB của bạn. Vui lòng nhập để hoàn tất giao dịch.</p>
+
+                        <input type="text" id="ncb-otp-code" class="form-control form-control-lg mb-4 text-center fs-3 letter-spacing-custom" placeholder="------" maxlength="6" />
+
+                        <button onclick="submitPayment()" class="btn btn-success btn-lg w-100" id="btn-submit-payment">Thanh Toán Ngay</button>
+                        <button onclick="cancelNcbPayment()" class="btn btn-outline-secondary w-100 mt-3">Hủy Giao Dịch</button>
+
+                        <div id="payment-error" class="text-danger mt-3 text-center hidden"></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="modal fade" id="otpModal" tabindex="-1" aria-hidden="true">
+        <!-- Initial iBanking OTP Modal -->
+        <div class="modal fade" id="otpModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Xác thực giao dịch OTP</h5>
-                        <button
-                            type="button"
-                            class="btn-close"
-                            data-bs-dismiss="modal"
-                            aria-label="Close"
-                        ></button>
+                        <h5 class="modal-title">Xác Thực iBanking</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="canceliBankingPayment()"></button>
                     </div>
                     <div class="modal-body">
                         <div id="otp-step-1">
-                            <p>
-                                Mã OTP sẽ được gửi đến email:
-                                <strong id="otp-email-display"></strong>
-                            </p>
-                            <button
-                                onclick="requestOtp()"
-                                class="btn btn-primary w-100"
-                                id="btn-request-otp"
-                            >
-                                Gửi OTP
-                            </button>
+                            <p>Mã OTP sẽ được gửi đến email: <strong id="otp-email-display"></strong></p>
+                            <button onclick="requestOtp()" class="btn btn-primary w-100" id="btn-request-otp">Gửi OTP</button>
                         </div>
                         <div id="otp-step-2" class="hidden">
-                            <p class="text-success">
-                                OTP đã được gửi! Vui lòng kiểm tra email (Hiệu
-                                lực 5 phút).
-                            </p>
-                            <input
-                                type="text"
-                                id="otp-code"
-                                class="form-control mb-3"
-                                placeholder="Nhập mã 6 số"
-                                maxlength="6"
-                            />
-                            <button
-                                onclick="submitPayment()"
-                                class="btn btn-success w-100"
-                                id="btn-submit-payment"
-                            >
-                                Thanh Toán
-                            </button>
+                            <p class="text-success">OTP đã được gửi! Vui lòng kiểm tra email (Hiệu lực 5 phút).</p>
+                            <input type="text" id="otp-code" class="form-control mb-3" placeholder="Nhập mã 6 số" maxlength="6" />
+                            <button onclick="verifyFirstOtp()" class="btn btn-success w-100" id="btn-verify-first-otp">Xác Nhận</button>
+                            <div id="first-otp-error" class="text-danger mt-2 hidden text-center"></div>
                         </div>
-                        <div
-                            id="payment-error"
-                            class="text-danger mt-3 hidden"
-                        ></div>
                     </div>
                 </div>
             </div>

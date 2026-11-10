@@ -1,23 +1,19 @@
 using IBankingTuition.Infrastructure.Adapters;
 using IBankingTuition.PaymentOrchestrator.Data;
 using Microsoft.Extensions.Configuration;
-using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
 
 namespace IBankingTuition.PaymentOrchestrator.Sagas;
 
 public class PaymentSaga
 {
     private readonly HttpClient _internalClient;
-    private readonly IPaymentAdapter _paymentAdapter;
     private readonly IEmailAdapter _emailAdapter;
     private readonly TransactionDbContext _dbContext;
     private readonly IConfiguration _config;
 
-    public PaymentSaga(HttpClient internalClient, IPaymentAdapter paymentAdapter, IEmailAdapter emailAdapter, TransactionDbContext dbContext, IConfiguration config)
+    public PaymentSaga(HttpClient internalClient, IEmailAdapter emailAdapter, TransactionDbContext dbContext, IConfiguration config)
     {
         _internalClient = internalClient;
-        _paymentAdapter = paymentAdapter;
         _emailAdapter = emailAdapter;
         _dbContext = dbContext;
         _config = config;
@@ -25,92 +21,54 @@ public class PaymentSaga
 
     public async Task<SagaResult> ExecuteAsync(PaymentCommand cmd)
     {
-        var hasPending = await _dbContext.Transactions
-        .AnyAsync(t => t.UserId == cmd.PayerId && t.FeeId == cmd.FeeId && t.Status == "PENDING");
-
-        if (hasPending)
-        {
-            return new SagaResult(false, "Bạn đang có một giao dịch đang chờ xử lý. Vui lòng hoàn tất hoặc hủy giao dịch đó trong Lịch sử trước khi tiếp tục.");
-        }
-
         var otpUrl = _config["InternalServices:OtpService"] ?? "http://localhost:5006";
-
-        var otpRes = await _internalClient.PutAsJsonAsync($"{otpUrl}/api/otps/{cmd.TransactionId}", new { Code = cmd.OtpCode });
-        if (!otpRes.IsSuccessStatusCode)
-        {
-            return new SagaResult(false, "OTP Verification Failed.");
-        }
-
-        var txn = new TransactionRecord
-        {
-            TransactionId = cmd.TransactionId,
-            UserId = cmd.PayerId,
-            FeeId = cmd.FeeId,
-            Amount = cmd.Amount,
-            Status = "PENDING"
-        };
-        _dbContext.Transactions.Add(txn);
-        await _dbContext.SaveChangesAsync();
-
-        var paymentUrl = await _paymentAdapter.GeneratePaymentUrlAsync(
-            cmd.TransactionId,
-            cmd.Amount,
-            $"Tuition {cmd.FeeId} - {cmd.TransactionId}",
-            cmd.UserRowVersion,
-            cmd.TuitionRowVersion,
-            cmd.Email
-        );
-
-        return new SagaResult(true, "Transaction Initiated", paymentUrl);
-    }
-
-    public async Task<bool> CompletePaymentAsync(string transactionId, int userRowVersion, int tuitionRowVersion, string email)
-    {
-        var txn = await _dbContext.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId);
-        if (txn == null || txn.Status != "PENDING") return false;
-
         var userUrl = _config["InternalServices:UserService"] ?? "http://localhost:5174";
         var tuitionUrl = _config["InternalServices:TuitionService"] ?? "http://localhost:5132";
 
-        var balanceRes = await _internalClient.GetFromJsonAsync<JsonElement>($"{userUrl}/api/users/{txn.UserId}/balance");
-        var freshUserRowVersion = balanceRes.GetProperty("rowVersion").GetInt32();
+        // Fetch the PENDING transaction initialized by the frontend
+        var txn = await _dbContext.Transactions.FindAsync(cmd.TransactionId);
+        if (txn == null)
+        {
+            return new SagaResult(false, "Không tìm thấy giao dịch hợp lệ.");
+        }
 
-        var deductRes = await _internalClient.PostAsJsonAsync($"{userUrl}/api/users/{txn.UserId}/deduct", new { Amount = txn.Amount, RowVersion = freshUserRowVersion });
+        // 1. Verify OTP
+        var otpRes = await _internalClient.PutAsJsonAsync($"{otpUrl}/api/otps/{cmd.TransactionId}", new { Code = cmd.OtpCode });
+        if (!otpRes.IsSuccessStatusCode)
+        {
+            return new SagaResult(false, "Xác thực OTP thất bại hoặc OTP đã hết hạn.");
+        }
+
+        // 2. SAGA PHASE 1: Deduct Balance (Optimistic Concurrency Control)
+        var deductRes = await _internalClient.PostAsJsonAsync($"{userUrl}/api/users/{cmd.PayerId}/deduct", new { Amount = cmd.Amount, RowVersion = cmd.UserRowVersion });
         if (!deductRes.IsSuccessStatusCode)
         {
             txn.Status = "FAILED";
             await _dbContext.SaveChangesAsync();
-            return false;
+            return new SagaResult(false, "Giao dịch thất bại: Số dư không đủ hoặc dữ liệu tài khoản đã bị thay đổi (Conflict).");
         }
 
-        var tuitionRes = await _internalClient.PutAsJsonAsync($"{tuitionUrl}/api/tuitions/{txn.FeeId}", new { IsPaid = true, RowVersion = tuitionRowVersion });
+        // 3. SAGA PHASE 2: Mark Tuition as Paid (Optimistic Concurrency Control)
+        var tuitionRes = await _internalClient.PutAsJsonAsync($"{tuitionUrl}/api/tuitions/{cmd.FeeId}", new { IsPaid = true, RowVersion = cmd.TuitionRowVersion });
         if (!tuitionRes.IsSuccessStatusCode)
         {
-            await _internalClient.PostAsJsonAsync($"{userUrl}/api/users/{txn.UserId}/refund", new { Amount = txn.Amount });
+            // COMPENSATING TRANSACTION: Tuition update failed. We must refund the user.
+            await _internalClient.PostAsJsonAsync($"{userUrl}/api/users/{cmd.PayerId}/refund", new { Amount = cmd.Amount });
+
             txn.Status = "COMPENSATED";
             await _dbContext.SaveChangesAsync();
-            return false;
+            return new SagaResult(false, "Giao dịch bị hoàn tác (Refunded): Học phí này đã được thanh toán bởi một giao dịch khác.");
         }
 
+        // 4. Success Finalization
         txn.Status = "SUCCESS";
         await _dbContext.SaveChangesAsync();
-        _ = _emailAdapter.SendEmailAsync(email, "Payment Successful", $"Transaction {transactionId} completed for {txn.Amount} VND.");
 
-        return true;
-    }
+        _ = _emailAdapter.SendEmailAsync(cmd.Email, "Thanh toán học phí thành công", $"Giao dịch {cmd.TransactionId} thanh toán thành công {cmd.Amount} VND cho mã học phí {cmd.FeeId}.");
 
-    public async Task<bool> UpdateTransactionStatusAsync(string transactionId, string newStatus)
-    {
-        var txn = await _dbContext.Transactions.FirstOrDefaultAsync(t => t.TransactionId == transactionId);
-        if (txn != null && txn.Status == "PENDING")
-        {
-            txn.Status = newStatus;
-            await _dbContext.SaveChangesAsync();
-            return true;
-        }
-        return false;
+        return new SagaResult(true, "Thanh toán thành công!");
     }
 }
 
 public record PaymentCommand(string TransactionId, string PayerId, string FeeId, decimal Amount, string OtpCode, int UserRowVersion, int TuitionRowVersion, string Email);
-public record SagaResult(bool Success, string Message, string? PaymentUrl = null);
+public record SagaResult(bool Success, string Message);
